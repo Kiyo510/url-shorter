@@ -32,9 +32,6 @@ jobs:
       - name: Copy Swagger UI to docs
         run: cp -r node_modules/swagger-ui-dist/* docs/swagger
 
-      - name: Copy OpenAPI spec to Swagger directory
-        run: cp swagger.yml docs/swagger
-
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
