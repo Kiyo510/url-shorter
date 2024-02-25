@@ -14,5 +14,19 @@
     <script src="./swagger-ui-bundle.js" charset="UTF-8"> </script>
     <script src="./swagger-ui-standalone-preset.js" charset="UTF-8"> </script>
     <script src="./swagger-initializer.js" charset="UTF-8"> </script>
+    <script>
+      window.onload = () => {
+        window.ui = SwaggerUIBundle({
+          url: 'swagger.yaml',
+          deepLinking: true,
+          dom_id: '#swagger-ui',
+          presets: [
+            SwaggerUIBundle.presets.apis,
+            SwaggerUIStandalonePreset
+          ],
+          layout: "StandaloneLayout",
+        });
+      };
+    </script>
   </body>
 </html>
