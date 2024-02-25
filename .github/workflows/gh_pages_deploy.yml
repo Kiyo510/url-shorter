@@ -1,48 +1,43 @@
-name: Deploy Swagger UI with GitHub Pages
+name: "swagger release"
 
 on:
   push:
-    branches: ["main"]
-  workflow_dispatch:
-
-permissions:
-  contents: write
-  pages: write
-  id-token: write
-
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
+    branches:
+      - 'main'
+  pull_request:
+    branches:
+      - 'main'
+    types: [opened, synchronize, closed]
 
 jobs:
-  build:
+  swagger-validate:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: 18
-
-      - name: Install Swagger UI
-        run: npm install swagger-ui-dist
-
-      - name: Copy Swagger UI to docs
+      - name: Install swagger-cli
         run: |
-          cp -r node_modules/swagger-ui-dist/* ./docs
-          sed -i "s|url: \"https://petstore.swagger.io/v2/swagger.json\"|url: \"swagger.yml\"|" ./docs/swagger-initializer.js
-          cat ./docs/swagger-initializer.js
+          npm install -g swagger-cli
 
-      # docs/swagger.ymlを読み込むようにファイルの書き換え
-#      - name: Replace URL in Swagger Initializer
-#        run: |
+      - name: Validate swagger files
+        run: |
+          swagger-cli validate -d ./docs/swagger.yaml --type yaml --format 3
 
+  swagger-release:
+    if: github.event.pull_request.merged == true
+    needs: swagger-validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-      - name: Deploy to GitHub Pages
+      - name: Copy Swagger static files
+        run: |
+          wget https://github.com/swagger-api/swagger-ui/archive/refs/tags/v5.11.8.tar.gz
+          tar -zxvf v5.11.8.tar.gz swagger-ui-5.11.8/dist/
+          cp -n swagger-ui-5.11.8/dist/* docs/
+
+      - name: Deploy
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./docs
-          keep_files: true
