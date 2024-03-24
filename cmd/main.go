@@ -30,7 +30,7 @@ func initDB() {
 
 func generateHash(url string) string {
 	hash := sha256.Sum256([]byte(url))
-	return hex.EncodeToString(hash[:10])
+	return hex.EncodeToString(hash[:])[:10]
 }
 
 type RequestData struct {
