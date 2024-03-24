@@ -38,25 +38,29 @@ type RequestData struct {
 }
 
 func shortenURLHandler(w http.ResponseWriter, r *http.Request) {
-	//TODO: GETの場合はエラーを返す
+	if r.Method != "POST" {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
 	//TODO: バリデーション
-	//TODO: Errorメッセージを返す
 
 	var originalUrl, hash string
-	if r.Method == "POST" {
-		var requestData RequestData
-		err := json.NewDecoder(r.Body).Decode(&requestData)
-		if err != nil {
-			log.Println("Failed to decode request body: ", err)
-		}
-
-		originalUrl = requestData.OriginalURL
-		hash = generateHash(originalUrl)
+	var requestData RequestData
+	err := json.NewDecoder(r.Body).Decode(&requestData)
+	if err != nil {
+		log.Println("Failed to decode request body: ", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
 	}
 
-	_, err := db.Exec("INSERT INTO short_url_mappings (original_url, hash) VALUES ($1, $2)", originalUrl, hash)
+	originalUrl = requestData.OriginalURL
+	hash = generateHash(originalUrl)
+
+	_, err = db.Exec("INSERT INTO short_url_mappings (original_url, hash) VALUES ($1, $2)", originalUrl, hash)
 	if err != nil {
-		log.Fatal("Failed to insert data: ", err)
+		log.Println("Failed to insert data: ", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
 	}
 
 	w.Write([]byte(`{"result": "ok"}`))
