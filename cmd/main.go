@@ -2,8 +2,10 @@ package main
 
 import (
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 
@@ -55,15 +57,37 @@ func shortenURLHandler(w http.ResponseWriter, r *http.Request) {
 
 	originalUrl = requestData.OriginalURL
 	hash = generateHash(originalUrl)
-
-	_, err = db.Exec("INSERT INTO short_url_mappings (original_url, hash) VALUES ($1, $2)", originalUrl, hash)
+	var existingHash string
+	err = db.Get(&existingHash, "SELECT hash FROM short_url_mappings WHERE hash = $1", hash)
+	//TODO: URLのホストは環境変数にする
+	shortUrl := "http://localhost:8080/" + hash
 	if err != nil {
-		log.Println("Failed to insert data: ", err)
+		if errors.Is(err, sql.ErrNoRows) {
+			_, err = db.Exec("INSERT INTO short_url_mappings (original_url, hash) VALUES ($1, $2)", originalUrl, hash)
+			if err != nil {
+				log.Println("Failed to insert data: ", err)
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
+		} else {
+			log.Println("Failed to get data: ", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+	} else {
+		shortUrl = "http://localhost:8080/" + existingHash
+	}
+
+	responseData := map[string]string{"short_url": shortUrl}
+	responseJson, err := json.Marshal(responseData)
+	if err != nil {
+		log.Println("Failed to encode response JSON: ", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
-
-	w.Write([]byte(`{"result": "ok"}`))
+	// クライアントにJSONレスポンスを返す
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(responseJson)
 }
 
 func main() {
