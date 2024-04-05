@@ -90,7 +90,24 @@ func shortenURLHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write(responseJson)
 }
 
+func redirectHandlerOriginalURL(w http.ResponseWriter, r *http.Request) {
+	hash := r.URL.Path[1:]
+	var originalURL string
+	err := db.Get(&originalURL, "SELECT original_url FROM short_url_mappings WHERE hash = $1", hash)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "Not Found", http.StatusNotFound)
+			return
+		}
+		log.Println("Failed to get data: ", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+	http.Redirect(w, r, originalURL, http.StatusFound)
+}
+
 func main() {
 	http.HandleFunc("/shorten", shortenURLHandler)
+	http.HandleFunc("/", redirectHandlerOriginalURL)
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
