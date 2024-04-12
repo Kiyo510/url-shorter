@@ -6,11 +6,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"log"
-	"net/http"
-
+	validation "github.com/go-ozzo/ozzo-validation/v4"
+	"github.com/go-ozzo/ozzo-validation/v4/is"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
+	"log"
+	"net/http"
 )
 
 var (
@@ -36,14 +37,20 @@ func generateHash(url string) string {
 }
 
 type RequestData struct {
-	OriginalURL string `json:"original_url"`
+	OriginalURL string `json:"original_url" validate:"required,http_url"`
 }
+type ValidationError struct {
+	Field string `json:"field"`
+	Error string `json:"error"`
+}
+type validationErrors []ValidationError
 
 func shortenURLHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
 		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 		return
 	}
+
 	//TODO: バリデーション
 
 	var originalUrl, hash string
@@ -55,9 +62,30 @@ func shortenURLHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	err = requestData.Validate()
+	//フロントにバリデーションエラーメッセージを返す
+	if err != nil {
+		var errs validation.Errors
+		errors.As(err, &errs)
+		var validationErrors validationErrors
+		for k, err := range errs {
+			validationErrors = append(validationErrors, ValidationError{Field: k, Error: err.Error()})
+		}
+		responseJson, err := json.Marshal(validationErrors)
+		if err != nil {
+			log.Println("Failed to encode response JSON: ", err)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(responseJson)
+		return
+	}
+
 	originalUrl = requestData.OriginalURL
 	hash = generateHash(originalUrl)
 	var existingHash string
+
 	err = db.Get(&existingHash, "SELECT hash FROM short_url_mappings WHERE hash = $1", hash)
 	//TODO: URLのホストは環境変数にする
 	shortUrl := "http://localhost:8080/" + hash
@@ -89,6 +117,14 @@ func shortenURLHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(responseJson)
 }
+
+func (r RequestData) Validate() error {
+	return validation.ValidateStruct(&r,
+		validation.Field(&r.OriginalURL, validation.Required.Error("URLは必須です"), is.DataURI.Error("URLの形式が正しくありません")),
+	)
+}
+
+// Street: the length must be between 5 and 50; State: must be in a valid format.
 
 func redirectHandlerOriginalURL(w http.ResponseWriter, r *http.Request) {
 	hash := r.URL.Path[1:]
