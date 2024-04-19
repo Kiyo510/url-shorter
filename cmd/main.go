@@ -6,12 +6,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/go-ozzo/ozzo-validation/v4/is"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 	"log"
 	"net/http"
+	"os"
 )
 
 var (
@@ -23,9 +25,10 @@ func init() {
 }
 
 func initDB() {
-	// TODO:あとで環境変数にする
+	dbName := os.Getenv("DB_NAME")
+	dsn := fmt.Sprintf("user=%s password=%s host=%s dbname=%s sslmode=%s", os.Getenv("DB_USER"), os.Getenv("DB_PASS"), os.Getenv("DB_HOST"), dbName, "disable")
 	var err error
-	db, err = sqlx.Open("postgres", "user=postgres password=postgres host=localhost dbname=postgres sslmode=disable")
+	db, err = sqlx.Open("postgres", dsn)
 	if err != nil {
 		log.Fatal("Failed to connect to DB: ", err)
 	}
@@ -51,8 +54,6 @@ func shortenURLHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	//TODO: バリデーション
-
 	var originalUrl, hash string
 	var requestData RequestData
 	err := json.NewDecoder(r.Body).Decode(&requestData)
@@ -63,7 +64,7 @@ func shortenURLHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = requestData.Validate()
-	//フロントにバリデーションエラーメッセージを返す
+
 	if err != nil {
 		var errs validation.Errors
 		errors.As(err, &errs)
@@ -87,8 +88,7 @@ func shortenURLHandler(w http.ResponseWriter, r *http.Request) {
 	var existingHash string
 
 	err = db.Get(&existingHash, "SELECT hash FROM short_url_mappings WHERE hash = $1", hash)
-	//TODO: URLのホストは環境変数にする
-	shortUrl := "http://localhost:8080/" + hash
+	shortUrl := os.Getenv("APP_URL") + "/" + hash
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			_, err = db.Exec("INSERT INTO short_url_mappings (original_url, hash) VALUES ($1, $2)", originalUrl, hash)
@@ -103,7 +103,7 @@ func shortenURLHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		shortUrl = "http://localhost:8080/" + existingHash
+		shortUrl = os.Getenv("APP_URL") + "/" + existingHash
 	}
 
 	responseData := map[string]string{"short_url": shortUrl}
