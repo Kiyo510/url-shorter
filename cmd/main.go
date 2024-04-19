@@ -120,7 +120,7 @@ func shortenURLHandler(w http.ResponseWriter, r *http.Request) {
 
 func (r RequestData) Validate() error {
 	return validation.ValidateStruct(&r,
-		validation.Field(&r.OriginalURL, validation.Required.Error("URLは必須です"), is.DataURI.Error("URLの形式が正しくありません")),
+		validation.Field(&r.OriginalURL, validation.Required.Error("URLは必須です"), is.URL.Error("URLの形式が正しくありません")),
 	)
 }
 
