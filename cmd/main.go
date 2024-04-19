@@ -145,5 +145,8 @@ func redirectHandlerOriginalURL(w http.ResponseWriter, r *http.Request) {
 func main() {
 	http.HandleFunc("/shorten", shortenURLHandler)
 	http.HandleFunc("/", redirectHandlerOriginalURL)
+	http.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("Hello, World!"))
+	})
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
