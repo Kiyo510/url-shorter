@@ -1,40 +1,32 @@
 package config
 
 import (
-	"fmt"
 	"log"
 	"os"
 
-	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
 )
 
-var DBConfig struct {
+type DBConfig struct {
 	User string
 	Host string
 	Name string
 	Pass string
-	DB   *sqlx.DB
 }
+
+var PostgresConf DBConfig
 
 func LoadDBConfig() {
-	DBConfig.User = os.Getenv("DB_USER")
-	DBConfig.Host = os.Getenv("DB_HOST")
-	DBConfig.Name = os.Getenv("DB_NAME")
-	DBConfig.Pass = os.Getenv("DB_PASS")
-
-	if DBConfig.User == "" || DBConfig.Host == "" || DBConfig.Name == "" || DBConfig.Pass == "" {
-		log.Fatal("Missing required environment variables")
+	config := DBConfig{
+		User: os.Getenv("DB_USER"),
+		Host: os.Getenv("DB_HOST"),
+		Name: os.Getenv("DB_NAME"),
+		Pass: os.Getenv("DB_PASS"),
 	}
 
-	InitDB()
-}
-
-func InitDB() {
-	dsn := fmt.Sprintf("user=%s password=%s host=%s dbname=%s sslmode=%s", DBConfig.User, DBConfig.Pass, DBConfig.Host, DBConfig.Name, "disable")
-	var err error
-	DBConfig.DB, err = sqlx.Open("postgres", dsn)
-	if err != nil {
-		log.Fatal("Failed to connect to DB: ", err)
+	if config.User == "" || config.Host == "" || config.Name == "" || config.Pass == "" {
+		log.Fatal("Missing required db environment variables")
 	}
+
+	PostgresConf = config
 }
