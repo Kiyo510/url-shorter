@@ -74,15 +74,17 @@ func ShortenURL(w http.ResponseWriter, r *http.Request) {
 
 func findOrCreateShortUrl(hash string, originalUrl string) (string, error) {
 	var existingHash string
-	ada, err := adaptor.NewPostgresAdapter()
+
+	dbAdaptor := adaptor.NewPostgresAdaptor()
+	db, err := dbAdaptor()
 	if err != nil {
-		log.Fatal(err)
+		return "", fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	err = ada.Get(&existingHash, "SELECT hash FROM short_url_mappings WHERE original_url = $1", originalUrl)
+	err = db.Get(&existingHash, "SELECT hash FROM short_url_mappings WHERE original_url = $1", originalUrl)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
-		_, err = ada.Exec("INSERT INTO short_url_mappings (original_url, hash) VALUES ($1, $2)", originalUrl, hash)
+		_, err = db.Exec("INSERT INTO short_url_mappings (original_url, hash) VALUES ($1, $2)", originalUrl, hash)
 		if err != nil {
 			return "", fmt.Errorf("failed to insert data: %w", err)
 		}
