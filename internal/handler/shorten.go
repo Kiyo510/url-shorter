@@ -37,7 +37,6 @@ func ShortenURL(w http.ResponseWriter, r *http.Request) {
 		utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method Not Allowed")
 		return
 	}
-
 	var originalUrl, hash string
 	var requestData RequestData
 	err := json.NewDecoder(r.Body).Decode(&requestData)
@@ -73,7 +72,7 @@ func ShortenURL(w http.ResponseWriter, r *http.Request) {
 }
 
 func findOrCreateShortUrl(hash string, originalUrl string) (string, error) {
-	var existingHash string
+	var existingUrl string
 
 	dbAdaptor := adaptor.NewPostgresAdaptor()
 	db, err := dbAdaptor()
@@ -81,20 +80,25 @@ func findOrCreateShortUrl(hash string, originalUrl string) (string, error) {
 		return "", fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	err = db.Get(&existingHash, "SELECT hash FROM short_url_mappings WHERE original_url = $1", originalUrl)
+	err = db.Get(&existingUrl, "SELECT original_url FROM short_url_mappings WHERE hash = $1", hash)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
 		_, err = db.Exec("INSERT INTO short_url_mappings (original_url, hash) VALUES ($1, $2)", originalUrl, hash)
 		if err != nil {
 			return "", fmt.Errorf("failed to insert data: %w", err)
 		}
+
+		return config.AppConf.BaseUrl + "/" + hash, nil
 	case err != nil:
 		return "", fmt.Errorf("failed to get data: %w", err)
+	case existingUrl == originalUrl:
+		return config.AppConf.BaseUrl + "/" + hash, nil
+	case existingUrl != originalUrl:
+		log.Println("Hash collision detected. Retrying with a new hash.")
+		const HashCollisionSuffix = "collision"
+
+		return findOrCreateShortUrl(utils.GenerateHash(originalUrl+HashCollisionSuffix), originalUrl)
 	default:
-		hash = existingHash
+		return "", fmt.Errorf("unexpected error: %w", err)
 	}
-
-	shortUrl := config.AppConf.BaseUrl + "/" + hash
-
-	return shortUrl, nil
 }
