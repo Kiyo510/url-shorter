@@ -9,6 +9,7 @@ import (
 	"net/http"
 
 	"github.com/Kiyo510/url-shorter/internal/config"
+	"github.com/Kiyo510/url-shorter/internal/infrastructure/adaptor"
 	"github.com/Kiyo510/url-shorter/internal/utils"
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/go-ozzo/ozzo-validation/v4/is"
@@ -17,10 +18,12 @@ import (
 type RequestData struct {
 	OriginalURL string `json:"original_url" validate:"required,http_url"`
 }
+
 type ValidationError struct {
 	Field string `json:"field"`
 	Error string `json:"error"`
 }
+
 type validationErrors []ValidationError
 
 func (r RequestData) Validate() error {
@@ -71,11 +74,17 @@ func ShortenURL(w http.ResponseWriter, r *http.Request) {
 
 func findOrCreateShortUrl(hash string, originalUrl string) (string, error) {
 	var existingHash string
-	err := config.DBConfig.DB.Get(&existingHash, "SELECT hash FROM short_url_mappings WHERE original_url = $1", originalUrl)
 
+	dbAdaptor := adaptor.NewPostgresAdaptor()
+	db, err := dbAdaptor()
+	if err != nil {
+		return "", fmt.Errorf("failed to connect to database: %w", err)
+	}
+
+	err = db.Get(&existingHash, "SELECT hash FROM short_url_mappings WHERE original_url = $1", originalUrl)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
-		_, err = config.DBConfig.DB.Exec("INSERT INTO short_url_mappings (original_url, hash) VALUES ($1, $2)", originalUrl, hash)
+		_, err = db.Exec("INSERT INTO short_url_mappings (original_url, hash) VALUES ($1, $2)", originalUrl, hash)
 		if err != nil {
 			return "", fmt.Errorf("failed to insert data: %w", err)
 		}
@@ -85,7 +94,7 @@ func findOrCreateShortUrl(hash string, originalUrl string) (string, error) {
 		hash = existingHash
 	}
 
-	shortUrl := config.AppConfig.BaseUrl + "/" + hash
+	shortUrl := config.AppConf.BaseUrl + "/" + hash
 
 	return shortUrl, nil
 }
