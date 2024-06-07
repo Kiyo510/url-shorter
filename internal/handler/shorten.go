@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -13,6 +14,7 @@ import (
 	"github.com/Kiyo510/url-shorter/internal/utils"
 	validation "github.com/go-ozzo/ozzo-validation/v4"
 	"github.com/go-ozzo/ozzo-validation/v4/is"
+	"github.com/redis/rueidis"
 )
 
 type RequestData struct {
@@ -37,7 +39,7 @@ func ShortenURL(w http.ResponseWriter, r *http.Request) {
 		utils.RespondWithError(w, http.StatusMethodNotAllowed, "Method Not Allowed")
 		return
 	}
-	var originalUrl, hash string
+	var originalURL, hash string
 	var requestData RequestData
 	err := json.NewDecoder(r.Body).Decode(&requestData)
 	if err != nil {
@@ -59,11 +61,28 @@ func ShortenURL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	originalUrl = requestData.OriginalURL
-	hash = utils.GenerateHash(originalUrl)
-	shortUrl, err := findOrCreateShortUrl(hash, originalUrl)
+	originalURL = requestData.OriginalURL
+	hash = utils.GenerateHash(originalURL)
+
+	shortUrl, err := findOrCreateShortUrl(hash, originalURL)
 	if err != nil {
 		log.Println("Failed to find or create short URL: ", err)
+		utils.RespondWithError(w, http.StatusInternalServerError, "Internal Server Error")
+		return
+	}
+	conf := config.RedisConf
+
+	client, err := rueidis.NewClient(rueidis.ClientOption{InitAddress: []string{conf.Host + ":" + conf.Port}})
+	if err != nil {
+		log.Println("Failed to connect to redis: ", err)
+		utils.RespondWithError(w, http.StatusInternalServerError, "Internal Server Error")
+		return
+	}
+	defer client.Close()
+	ctx := context.Background()
+	err = client.Do(ctx, client.B().Set().Key(hash).Value(originalURL).Nx().ExSeconds(100).Build()).Error()
+	if err != nil {
+		log.Println("Failed to set data to redis: ", err)
 		utils.RespondWithError(w, http.StatusInternalServerError, "Internal Server Error")
 		return
 	}
@@ -71,7 +90,7 @@ func ShortenURL(w http.ResponseWriter, r *http.Request) {
 	utils.RespondWithJSON(w, map[string]string{"short_url": shortUrl}, http.StatusCreated)
 }
 
-func findOrCreateShortUrl(hash string, originalUrl string) (string, error) {
+func findOrCreateShortUrl(hash string, originalURL string) (string, error) {
 	var existingUrl string
 
 	dbAdaptor := adaptor.NewPostgresAdaptor()
@@ -83,7 +102,7 @@ func findOrCreateShortUrl(hash string, originalUrl string) (string, error) {
 	err = db.Get(&existingUrl, "SELECT original_url FROM short_url_mappings WHERE hash = $1", hash)
 	switch {
 	case errors.Is(err, sql.ErrNoRows):
-		_, err = db.Exec("INSERT INTO short_url_mappings (original_url, hash) VALUES ($1, $2)", originalUrl, hash)
+		_, err = db.Exec("INSERT INTO short_url_mappings (original_url, hash) VALUES ($1, $2)", originalURL, hash)
 		if err != nil {
 			return "", fmt.Errorf("failed to insert data: %w", err)
 		}
@@ -91,13 +110,13 @@ func findOrCreateShortUrl(hash string, originalUrl string) (string, error) {
 		return config.AppConf.BaseUrl + "/" + hash, nil
 	case err != nil:
 		return "", fmt.Errorf("failed to get data: %w", err)
-	case existingUrl == originalUrl:
+	case existingUrl == originalURL:
 		return config.AppConf.BaseUrl + "/" + hash, nil
-	case existingUrl != originalUrl:
+	case existingUrl != originalURL:
 		log.Println("Hash collision detected. Retrying with a new hash.")
 		const HashCollisionSuffix = "collision"
 
-		return findOrCreateShortUrl(utils.GenerateHash(originalUrl+HashCollisionSuffix), originalUrl)
+		return findOrCreateShortUrl(utils.GenerateHash(originalURL+HashCollisionSuffix), originalURL)
 	default:
 		return "", fmt.Errorf("unexpected error: %w", err)
 	}

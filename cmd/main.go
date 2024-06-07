@@ -11,6 +11,7 @@ import (
 func main() {
 	config.LoadDBConfig()
 	config.LoadAppConfig()
+	config.LoadRedisConfig()
 
 	http.HandleFunc("/shorten", handler.ShortenURL)
 	http.HandleFunc("/", handler.RedirectURL)
