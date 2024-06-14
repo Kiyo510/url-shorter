@@ -5,4 +5,5 @@ scrape_configs:
   - job_name: 'local-vegeta'
     metrics_path: /metrics
     static_configs:
-      - targets: ['host.docker.internal:8880']
+#      - targets: ['host.docker.internal:8080']
+      - targets: ['host.docker.internal:8080']
