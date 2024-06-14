@@ -16,6 +16,34 @@ services:
       - "6379:6379"
     volumes:
       - redis-volume:/data
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    volumes:
+      - ./prometheus.yml:/prometheus/prometheus.yml:ro
+    ports:
+      - 19090:9090
+    command:
+      - "--web.enable-lifecycle"
+    restart: always
+#    networks:
+#      - promnet
+    user: root
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    volumes:
+      - ./grafana-volume:/var/lib/grafana
+    restart: always
+#    networks:
+#      - promnet
+    ports:
+      - 13030:3000
+    user: root
+#networks:
+#  promnet:
+#    driver: bridge
 volumes:
   db-volume:
   redis-volume:
