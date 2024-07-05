@@ -1,9 +1,15 @@
 global:
-  scrape_interval: 10s
-  evaluation_interval: 10s
-scrape_configs:
-  - job_name: 'local-vegeta'
-    metrics_path: /metrics
+  scrape_interval: 15s # デフォルトの監視対象にpullする間隔
+  external_labels: # 外部と通信するときのラベル
+    monitor: 'codelab-monitor'
+scrape_configs: # 監視対象ごとの設定
+  - job_name: 'prometheus' # Prometheus自身の監視
+    scrape_interval: 5s # デフォルトの間隔を上書き
     static_configs:
-#      - targets: ['host.docker.internal:8080']
-      - targets: ['host.docker.internal:8080']
+      - targets: ['localhost:9090']
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+  - job_name: 'postgres-exporter'
+    static_configs:
+      - targets: ['postgres_exporter:9187']
