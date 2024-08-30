@@ -3,8 +3,6 @@ package config
 import (
 	"log"
 	"os"
-
-	_ "github.com/lib/pq"
 )
 
 type DBConfig struct {

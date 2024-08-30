@@ -7,7 +7,7 @@ services:
       - "5432:5432"
     volumes:
       - db-volume:/var/lib/postgresql/data
-      - ./docker/conf/postgresql.conf:/var/lib/postgresql/data/postgresql.conf
+      - ./docker/conf/postgresql.conf:/etc/postgresql.conf
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
