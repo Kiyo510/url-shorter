@@ -7,6 +7,7 @@ services:
       - "5432:5432"
     volumes:
       - db-volume:/var/lib/postgresql/data
+      - ./docker/conf/postgresql.conf:/etc/postgresql.conf
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -16,6 +17,44 @@ services:
       - "6379:6379"
     volumes:
       - redis-volume:/data
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    volumes:
+      - ./prometheus.yml:/prometheus/prometheus.yml:ro
+    ports:
+      - 19090:9090
+    command:
+      - "--web.enable-lifecycle"
+    restart: always
+#    networks:
+#      - promnet
+    user: root
+  node-exporter:
+    image: quay.io/prometheus/node-exporter
+    ports:
+      - 9100:9100
+    volumes:
+      - ./proc:/host/proc
+      - ./sys:/host/sys
+      - ./rootfs:/rootfs
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    volumes:
+      - ./grafana-volume:/var/lib/grafana
+    restart: always
+#    networks:
+#      - promnet
+    ports:
+      - 13030:3000
+    user: root
+  postgres_exporter:
+    hostname: postgres_exporter
+    container_name: postgres_exporter
+    image: quay.io/prometheuscommunity/postgres-exporter:latest
+    ports:
+      - 9187:9187
 volumes:
   db-volume:
   redis-volume:

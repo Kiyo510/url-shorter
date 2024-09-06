@@ -23,3 +23,4 @@ go.work
 .envrc
 
 .idea/
+grafana-volume/
